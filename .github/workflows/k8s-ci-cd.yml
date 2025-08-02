@@ -29,9 +29,9 @@ jobs:
       - name: Set up Minikube
         uses: manusa/actions-setup-minikube@v2.14.0
         with:
-          minikube-version: latest
-          kubernetes-version: latest
-          start-options: '--driver=docker'
+          "minikube version": "latest"
+          "kubernetes version": "latest"
+          "start options": '--driver=docker'
 
       - name: Load Docker env for Minikube
         run: |
