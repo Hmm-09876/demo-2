@@ -27,15 +27,18 @@ jobs:
         run: pytest test/
 
       - name: Set up Minikube
-        run: |
-            curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-            sudo install minikube /usr/local/bin/minikube
-            minikube start --driver=docker
-            eval $(minikube docker-env --shell=bash)
-            echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
-            echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
-            echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
+        uses: manusa/minikube-action@v2
+        with:
+          minikube-version: latest
+          kubernetes-version: latest
+          start-options: '--driver=docker'
 
+      - name: Load Docker env for Minikube
+        run: |
+            echo "::group::Minikube Docker Environment"
+            eval $(minikube docker-env)
+            echo "::endgroup::"
+      
       - name: Deploy to Minikube
         run: |
             python k8s.py
