@@ -26,12 +26,15 @@ jobs:
       - name: Run tests
         run: pytest test/
 
-      - name: Set up Docker for Minikube
+      - name: Set up Minikube
         run: |
-            curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-            sudo install minikube-linux-amd64 /usr/local/bin/minikube
+            curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+            sudo install minikube /usr/local/bin/minikube
             minikube start --driver=docker
-            echo "::add-path::$(minikube -p minikube docker-env | grep DOCKER_HOST | cut -d'=' -f2)"
+            eval $(minikube docker-env --shell=bash)
+            echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+            echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
+            echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
 
       - name: Deploy to Minikube
         run: |
