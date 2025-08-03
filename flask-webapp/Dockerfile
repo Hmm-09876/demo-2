@@ -11,5 +11,5 @@ COPY . .
 ENV FLASK_APP=myapp.py
 EXPOSE 5000
 
-CMD [ "python", "app.py" ]
+CMD [ "python", "myapp.py" ]
 
