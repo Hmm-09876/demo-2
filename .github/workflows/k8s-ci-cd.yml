@@ -48,10 +48,14 @@ jobs:
         run: |
             python k8s.py
 
-      - name: Debug Minikube
+      - name: Debug K8s 
         run: |
-            kubectl get pods
-            kubectl get services flask-webapp-service -o yaml
+            kubectl get pods -o wide
+            kubectl describe pods
+            for p in $(kubectl get pods -o name); do
+              echo "--- Logs for $p ---"
+              kubectl logs $p || true
+            done
 
       - name: Wait for deployment
         run: |
