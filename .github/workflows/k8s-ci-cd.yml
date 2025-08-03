@@ -69,8 +69,16 @@ jobs:
         run: |
             kubectl rollout status deployment/flask-webapp --timeout=20s
 
-      - name: Shut service URL
+      - name: Smoke test the service
         run: |
-            minikube service flask-webapp-service --url
-
+            kubectl port-forward service/flask-webapp-service 5000:5000 & PF_PID=$!
+            sleep 5
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000)
+            echo: "HTTP Code: $HTTP_CODE"
+            if [[ $HTTP_CODE -lt 200 || $HTTP_CODE -ge 300 ]]; then
+              echo "Service is not responding as expected. HTTP Code: $HTTP_CODE"
+              exit 1
+            fi
+            echo "Service is up and running with HTTP Code: $HTTP_CODE"
+            kill $PF_PID || true
     
