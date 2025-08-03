@@ -29,15 +29,20 @@ jobs:
       - name: Set up Minikube
         uses: manusa/actions-setup-minikube@v2.14.0
         with:
-          "minikube version": "latest"
-          "kubernetes version": "latest"
-          "start options": '--driver=docker'
+          minikube version: "v1.33.1"
+          kubernetes version: "v1.27.4"
+          driver: docker
 
-      - name: Load Docker env for Minikube
+      # - name: Load Docker env for Minikube
+      #   run: |
+      #       echo "::group::Minikube Docker Environment"
+      #       eval $(minikube docker-env)
+      #       echo "::endgroup::"
+
+      - name: Verify Minikube and Docker
         run: |
-            echo "::group::Minikube Docker Environment"
-            eval $(minikube docker-env)
-            echo "::endgroup::"
+            docker version
+            kubectl get nodes
       
       - name: Deploy to Minikube
         run: |
