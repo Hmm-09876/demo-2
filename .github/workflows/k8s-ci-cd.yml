@@ -46,6 +46,7 @@ jobs:
       
       - name: Deploy to Minikube
         run: |
+            docker build -t flask-webapp:latest .
             python k8s.py
 
       - name: Debug K8s 
@@ -59,7 +60,7 @@ jobs:
 
       - name: Wait for deployment
         run: |
-            kubectl rollout status deployment/flask-webapp --timeout=60s
+            kubectl rollout status deployment/flask-webapp --timeout=20s
 
       - name: Shut service URL
         run: |
