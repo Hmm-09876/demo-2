@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@master
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -26,19 +26,54 @@ jobs:
       - name: Run tests
         run: pytest test/
 
-      - name: Set up Minikube
-        uses: manusa/actions-setup-minikube@v2.14.0
-        with:
-          minikube version: "v1.33.1"
-          kubernetes version: "v1.27.4"
-          driver: docker
+      # - name: Set up Minikube
+      #   uses: manusa/actions-setup-minikube@v2.14.0
+      #   with:
+      #     minikube version: "v1.33.1"
+      #     kubernetes version: "v1.27.4"
+      #     driver: docker
 
-      - name: Point Docker CLI to Minikube
+      - name: Install kubectl
         run: |
-          eval "$(minikube docker-env --shell=bash)"
-          echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
-          echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
-          echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
+          curl -LO "https://dl.k8s.io/release/$(curl -Lsf https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+
+      - name: Create KinD cluster
+        uses: helm/kind-action@v1
+        with:
+          # version: v0.29.0
+        #   alwaysDownload: true
+          cluster_name: "kind-${{ github.run_id }}"
+        #   wait: 60s
+        #   continue-on-error: true
+
+        
+      - name: "Debug: list Kind clusters"
+        run: |
+          kind get clusters
+
+
+      - name: Configure kubectl
+        run: |
+            mkdir -p $HOME/.kube
+            kind get kubeconfig --name kind-${{ github.run_id }} > $HOME/.kube/config.yml
+            echo "KUBECONFIG=$HOME/.kube/config.yml" >> $GITHUB_ENV
+            kubectl cluster-info
+
+      - name: Build & Load Docker image
+        run: |
+            docker build -t flask-webapp:latest flask-webapp/
+            kind load docker-image flask-webapp:latest --name kind-${{ github.run_id }}
+          
+
+      # - name: Point Docker CLI to Minikube
+      #   run: |
+      #     eval "$(minikube docker-env --shell=bash)"
+      #     echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+      #     echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
+      #     echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
       
 
       # - name: Load Docker env for Minikube
@@ -47,12 +82,12 @@ jobs:
       #       eval $(minikube docker-env)
       #       echo "::endgroup::"
 
-      - name: Build & Cache Docker image
-        run: |
-            docker build -t flask-webapp:latest flask-webapp/
-            minikube cache add flask-webapp:latest
+      # - name: Build & Cache Docker image
+      #   run: |
+      #       docker build -t flask-webapp:latest flask-webapp/
+      #       minikube cache add flask-webapp:latest
       
-      - name: Deploy to Minikube
+      - name: Deploy to cluster
         run: |
             kubectl apply -f k8s.yml
 
