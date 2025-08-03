@@ -48,6 +48,15 @@ jobs:
         run: |
             python k8s.py
 
+      - name: Debug Minikube
+        run: |
+            kubectl get pods
+            kubectl get services flask-webapp-service -o yaml
+
+      - name: Wait for deployment
+        run: |
+            kubectl rollout status deployment/flask-webapp --timeout=60s
+
       - name: Shut service URL
         run: |
             minikube service flask-webapp-service --url
