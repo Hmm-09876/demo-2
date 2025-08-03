@@ -46,8 +46,11 @@ jobs:
       
       - name: Deploy to Minikube
         run: |
-            docker build -t flask-webapp:latest .
             python k8s.py
+
+      - name: Point Docker CLI to Minikube
+        run: |
+            echo "$(minikube docker-env --shell-bash)" >> $GITHUB_ENV
 
       - name: Debug K8s 
         run: |
