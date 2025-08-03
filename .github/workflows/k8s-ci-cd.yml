@@ -33,27 +33,28 @@ jobs:
           kubernetes version: "v1.27.4"
           driver: docker
 
+      - name: Point Docker CLI to Minikube
+        run: |
+          echo "$(minikube docker-env --shell=bash)"
+          echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+          echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
+          echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
+      
+
       # - name: Load Docker env for Minikube
       #   run: |
       #       echo "::group::Minikube Docker Environment"
       #       eval $(minikube docker-env)
       #       echo "::endgroup::"
 
-      - name: Verify Minikube and Docker
+      - name: Build & Cache Docker image
         run: |
-            docker version
-            kubectl get nodes
+            docker build -t flask-webapp:latest flask-webapp/
+            minikube cache add flask-webapp:latest
       
       - name: Deploy to Minikube
         run: |
-            python k8s.py
-
-      - name: Point Docker CLI to Minikube
-        run: |
-            echo "$(minikube docker-env --shell=bash)"
-            echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
-            echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
-            echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
+            kubectl apply -f k8s.yml
 
       - name: Debug K8s 
         run: |
