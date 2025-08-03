@@ -74,7 +74,7 @@ jobs:
             kubectl port-forward service/flask-webapp-service 5000:5000 & PF_PID=$!
             sleep 5
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000)
-            echo: "HTTP Code: $HTTP_CODE"
+            echo "HTTP Code: $HTTP_CODE"
             if [[ $HTTP_CODE -lt 200 || $HTTP_CODE -ge 300 ]]; then
               echo "Service is not responding as expected. HTTP Code: $HTTP_CODE"
               exit 1
