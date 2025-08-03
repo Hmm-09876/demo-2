@@ -50,7 +50,10 @@ jobs:
 
       - name: Point Docker CLI to Minikube
         run: |
-            echo "$(minikube docker-env --shell-bash)" >> $GITHUB_ENV
+            echo "$(minikube docker-env --shell=bash)"
+            echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
+            echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
+            echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
 
       - name: Debug K8s 
         run: |
