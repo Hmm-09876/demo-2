@@ -1,4 +1,4 @@
-[![CI/CD](https://github.com/Hmm-09876/demo-2/actions/workflows/demo-2/k8s-ci-cd.yml/badge.svg)](https://github.com/Hmm-09876/demo-2/actions)
+[![CI/CD](https://github.com/Hmm-09876/demo-2/actions/workflows/k8s-ci-cd.yml/badge.svg)](https://github.com/Hmm-09876/demo-2/actions)
 # Mục tiêu demo-2
 
 1. Hiểu rõ hơn về CI/CD
