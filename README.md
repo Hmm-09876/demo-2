@@ -1,3 +1,4 @@
+[![CI/CD](https://github.com/Hmm-09876/demo-2/actions/workflows/demo-2/k8s-ci-cd.yml/badge.svg)](https://github.com/Hmm-09876/demo-2/actions)
 # Mục tiêu demo-2
 
 1. Hiểu rõ hơn về CI/CD
@@ -30,7 +31,9 @@ wrangler deploy
 `https://steep-fog-d998.demo2-test.workers.dev/`
 
 # Cài các dependencies
-`pip install docker flask setuptools wheel`
+```
+pip install docker flask pytest app
+```
 
 # Cài Minikube
 ```
@@ -50,6 +53,21 @@ newgrp docker
 minikube start --driver=docker
 ```
 
+# Cài và setup Kind
+```
+[ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+chmod +x kind
+mv ./kind /usr/local/bin/
+kind create cluster --name kind
+kind load docker-image my-backend:latest
+```
+# Cài và setup Helm
+```
+snap install helm --clasic
+helm create helm-chart
+helm upgrade --install demo ./helm-chart -f helm-chart/values.yaml
+```
+
 # Cài kubectl và kiểm tra node
 ```
 sudo snap install kubectl --classic
@@ -62,8 +80,9 @@ eval $(minikube docker-env)
 ```
 
 # Build Docker image cho Flask
-`docker build -t flask-app:latest .`
-
+```
+docker build -t flask-app:latest .
+```
 
 # Tải và cài act
 ```
@@ -72,6 +91,41 @@ sudo tar xf act.tar.gz -C /usr/local/bin act
 rm -f act.tar.gz
 ```
 
+***
+## Chạy thử và test nhanh cho client
+# Clone repo về
+```
+git clone https://github.com/Hmm-09876/demo-2.git
+cd demo-2/
+```
+
+# Xây dựng Docker image cho backend
+```
+sudo usermod -aG docker $USER
+newgrp docker
+docker build -t my-backend:latest . 
+```
+
+# Tải và nạp image vào Kind
+```
+[ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+chmod +x kind
+mv ./kind /usr/local/bin/
+kind create cluster --name kind
+kind load docker-image my-backend:latest
+```
+
+# Triển khai ứng dụng qua Helm
+```
+snap install helm --clasic
+helm create helm-chart
+helm upgrade --install demo ./helm-chart -f helm-chart/values.yaml
+```
+
+# Kiểm tra trạng thái của Pod
+```
+kubectl get pods
+```
 
 
 
