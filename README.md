@@ -115,7 +115,7 @@ kind create cluster --name kind
 kind load docker-image my-backend:latest
 ```
 
-# Triển khai ứng dụng qua Helm
+## Triển khai ứng dụng qua Helm
 ```
 snap install helm --clasic
 helm create helm-chart
