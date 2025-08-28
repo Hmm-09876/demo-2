@@ -4,116 +4,164 @@ on:
   push:
     branches:
       - main
+    # paths:
+    #   - 'flask-webapp/**'
+    #   - 'helm-chart/**'
   
 jobs:
   k8s-ci-cd:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: flask-webapp
+      IMAGE_TAG: ${{ github.sha }}
+      KIND_CLUSTER_NAME: ${{ github.run_id }}
+      KUBECONFIG: ${{ github.workspace }}/.kube/config.yml
+
     steps:
       - name: Checkout code
         uses: actions/checkout@master
+
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.x
         
+
       - name: Install dependencies
         run: |
             python -m pip install --upgrade pip 
             pip install -r flask-webapp/requirements.txt
-            pip install pyyaml
+
 
       - name: Run tests
-        run: pytest test/
+        run: pytest ./test
 
-      # - name: Set up Minikube
-      #   uses: manusa/actions-setup-minikube@v2.14.0
-      #   with:
-      #     minikube version: "v1.33.1"
-      #     kubernetes version: "v1.27.4"
-      #     driver: docker
+
+      - name: Build Docker image
+        run: |
+            docker build -t $IMAGE_NAME:$IMAGE_TAG ./flask-webapp
+
 
       - name: Install kubectl
         run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -Lsf https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+            chmod +x kubectl
+            mkdir -p ~/.local/bin
+            mv ./kubectl ~/.local/bin/kubectl
 
 
       - name: Create KinD cluster
         uses: helm/kind-action@v1
         with:
-          # version: v0.29.0
-        #   alwaysDownload: true
-          cluster_name: "kind-${{ github.run_id }}"
-        #   wait: 60s
-        #   continue-on-error: true
+          cluster_name: ${{ env.KIND_CLUSTER_NAME }}
 
-
-      - name: "Debug: list Kind clusters"
+          
+      - name: Debug KinD cluster
         run: |
-          kind get clusters
+            kind get clusters
+            
+
+      - name: Install Metrics Server
+        run: |
+            kubectl apply -f components.yaml
+            kubectl logs -n kube-system -l k8s-app=metrics-server || true
+            kubectl get apiservices || true
+            kubectl get deployment metrics-server -n kube-system || true
+            kubectl top nodes
+
 
 
       - name: Configure kubectl
         run: |
-            mkdir -p $HOME/.kube
-            kind get kubeconfig --name kind-${{ github.run_id }} > $HOME/.kube/config.yml
-            echo "KUBECONFIG=$HOME/.kube/config.yml" >> $GITHUB_ENV
+            mkdir -p $(dirname "${KUBECONFIG}")
+            kind get kubeconfig --name ${KIND_CLUSTER_NAME} > "${KUBECONFIG}"
+            echo "KUBECONFIG=${KUBECONFIG}" >> $GITHUB_ENV
+            kubectl config use-context kind-${KIND_CLUSTER_NAME}
             kubectl cluster-info
+            kubectl get nodes
+            kubectl config get-contexts
 
-      - name: Build & Load Docker image
+
+      - name: Load Docker image into KinD
         run: |
-            docker build -t flask-webapp:latest flask-webapp/
-            kind load docker-image flask-webapp:latest --name kind-${{ github.run_id }}
+            kind load docker-image $IMAGE_NAME:$IMAGE_TAG --name $KIND_CLUSTER_NAME
+            
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+
+      # - name: Deploy to Cluster
+      #   run: |
+      #       kubectl apply -f k8s.yml
+
+
+      - name: Deploy Helm chart
+        run: |
+            helm upgrade --install web-app ./helm-chart -n demo --create-namespace 
+            sleep 15
           
 
-      # - name: Point Docker CLI to Minikube
+      # - name: Debug Helm failure
       #   run: |
-      #     eval "$(minikube docker-env --shell=bash)"
-      #     echo "DOCKER_HOST=$DOCKER_HOST" >> $GITHUB_ENV
-      #     echo "DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY" >> $GITHUB_ENV
-      #     echo "DOCKER_CERT_PATH=$DOCKER_CERT_PATH" >> $GITHUB_ENV
-      
+      #     echo "--- Pods ---"
+      #     kubectl get pods -n demo -o wide
+      #     echo "--- Describe ---"
+      #     kubectl describe pods -n demo
+      #     echo "--- Logs ---"
+      #     for p in $(kubectl get pods -n demo -o name); do
+      #       kubectl logs -n demo $p || true
+      #     done
+      #     kubectl get all -n demo -o wide
 
-      # - name: Load Docker env for Minikube
-      #   run: |
-      #       echo "::group::Minikube Docker Environment"
-      #       eval $(minikube docker-env)
-      #       echo "::endgroup::"
-
-      # - name: Build & Cache Docker image
-      #   run: |
-      #       docker build -t flask-webapp:latest flask-webapp/
-      #       minikube cache add flask-webapp:latest
-      
-      - name: Deploy to cluster
-        run: |
-            kubectl apply -f k8s.yml
-
-      - name: Debug K8s 
-        run: |
-            kubectl get pods -o wide
-            kubectl describe pods
-            for p in $(kubectl get pods -o name); do
-              echo "--- Logs for $p ---"
-              kubectl logs $p || true
-            done
 
       - name: Wait for deployment
         run: |
-            kubectl rollout status deployment/flask-webapp --timeout=20s
+            kubectl get pods -n kube-system | grep metrics-server
+            kubectl logs -n kube-system deployment/metrics-server --tail=200
+
+            # xem nếu metrics API sẵn sàng
+            kubectl get apiservice v1beta1.metrics.k8s.io -o yaml
+
+            # thử xem kubectl top
+            kubectl top nodes
+            kubectl top pods -n demo
+            helm list -A
+            helm -n demo status flask-webapp || true
+            helm -n demo get manifest flask-webapp | head -n 50
+            kubectl -n demo get all -o wide
+
+            kubectl rollout status deployment/web-app -n demo --timeout=20s
+
 
       - name: Smoke test the service
         run: |
-            kubectl port-forward service/flask-webapp-service 5000:5000 & PF_PID=$!
+            kubectl port-forward -n demo svc/web-app 5000:5000 &
+            PF_PID=$!
             sleep 5
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000)
-            echo "HTTP Code: $HTTP_CODE"
-            if [[ $HTTP_CODE -lt 200 || $HTTP_CODE -ge 300 ]]; then
-              echo "Service is not responding as expected. HTTP Code: $HTTP_CODE"
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000 || echo "000")
+            echo "HTTP_CODE=$HTTP_CODE"
+            if [ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]; then
+              echo "Service is not healthy"
+              kill $PF_PID || true
               exit 1
             fi
-            echo "Service is up and running with HTTP Code: $HTTP_CODE"
+            echo "Service is healthy"
             kill $PF_PID || true
-    
+
+
+      - name: Dump pod logs for debugging
+        run: |
+            for p in $(kubectl -n demo get pods -o name); do
+              echo "Logs for Pod: $p"
+              kubectl -n demo logs $p --all-containers || true
+            done
+
+      
+      - name: Cleanup (always)
+        if: always()
+        run: |
+          kubectl delete pod -l run=loadgen -n demo --grace-period=0 --force
+          kubectl delete pods -n demo --all
+
