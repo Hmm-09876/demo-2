@@ -56,9 +56,9 @@ jobs:
             kubectl cluster-info --context kind-${{env.KIND_CLUSTER_NAME}} || kubectl cluster-info
             
 
-      # - name: Deploy to Cluster
-      #   run: |
-      #       kubectl apply -f k8s.yml
+      - name: Build, load image and apply manifest k8s.yml
+        run: | 
+            python k8s.py
 
 
       - name: Install Metrics Server
@@ -79,16 +79,6 @@ jobs:
             kubectl config use-context kind-${{env.KIND_CLUSTER_NAME}}
             kubectl get nodes
             kubectl config get-contexts
-
-
-      - name: Build Docker image
-        run: |
-            docker build -t ${{env.IMAGE_NAME}}:${{env.IMAGE_TAG}} ./flask-webapp
-            
-
-      - name: Load Docker image into KinD
-        run: |
-            kind load docker-image ${{env.IMAGE_NAME}}:${{env.IMAGE_TAG}} --name ${{env.KIND_CLUSTER_NAME}}
             
 
       - name: Install Helm

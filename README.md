@@ -1,15 +1,16 @@
 [![CI/CD](https://github.com/Hmm-09876/demo-2/actions/workflows/k8s-ci-cd.yml/badge.svg)](https://github.com/Hmm-09876/demo-2/actions)
 # Mục tiêu demo-2
 
-1. Hiểu rõ hơn về CI/CD
+1. Hiểu và thực hành CI/CD (GitHub Actions + Act)
 
-2. Phát triển REST API với Flask
+2. Cung cấp hai API:
+   - Backend: REST API với Flask + basic test.
+   - Serverless: Todo API bằng TypeScript cho Cloudflare Workers.
 
-3. Thử nghiệm CI/CD cục bộ với Act
+3. Triển khai ứng dụng lên KinD bằng Helm và cấu hình HPA.
 
-4. Triển khai hạ tầng IaC
+4. Hiểu rõ hơn về Kubernetes manifest.
 
-5. Quản lý monorepo
 ***
 # Những gì cần cài ban đầu
 
@@ -39,7 +40,7 @@ pip install docker flask pytest app
 ## Cài kubectl
 https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
 
-## Cài kind:
+## Cài kind
 https://kind.sigs.k8s.io/docs/user/quick-start/
 	
 ## Cài helm
@@ -49,7 +50,9 @@ https://helm.sh/docs/intro/install/
 https://docs.docker.com/engine/install/ubuntu/
 
 ## Tải Metrics Server manifest:
+```
 wget https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
 
 ## Tải và cài act
 ```
@@ -71,13 +74,12 @@ cd demo-2/
 kind create cluster --name demo-cluster
 ```
 
-## Build & load image
+## Build, load image và apply k8s.yml manifest
 ```
-docker build -t my-backend:latest ./flask-webapp
-kind load docker-image my-backend:latest --name demo-cluster
+python k8s.py
 ```
 
-## cài metrics-server
+## Apply metrics-server manifest
 ```
 kubectl apply -f components.yaml
 ```
@@ -95,9 +97,10 @@ kubectl top pods -n demo
 ```
 
 ## Cleanup
+```
 kubectl delete ns demo
 kind delete cluster --name demo-cluster
-
+```
 
 
 
