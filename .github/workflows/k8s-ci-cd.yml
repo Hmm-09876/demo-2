@@ -4,10 +4,7 @@ on:
   push:
     branches:
       - main
-    # paths:
-    #   - 'flask-webapp/**'
-    #   - 'helm-chart/**'
-  
+
 jobs:
   k8s-ci-cd:
     runs-on: ubuntu-latest
@@ -16,6 +13,8 @@ jobs:
       IMAGE_TAG: ${{ github.sha }}
       KIND_CLUSTER_NAME: ${{ github.run_id }}
       KUBECONFIG: ${{ github.workspace }}/.kube/config.yml
+      NAMESPACE: demo
+      RELEASE_NAME: web-app
 
     steps:
       - name: Checkout code
@@ -34,134 +33,103 @@ jobs:
             pip install -r flask-webapp/requirements.txt
 
 
-      - name: Run tests
-        run: pytest ./test
+      - name: Install Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest' 
+        id: install
 
 
-      - name: Build Docker image
+      - name: Install Kind
         run: |
-            docker build -t $IMAGE_NAME:$IMAGE_TAG ./flask-webapp
-
-
-      - name: Install kubectl
-        run: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
-            chmod +x kubectl
-            mkdir -p ~/.local/bin
-            mv ./kubectl ~/.local/bin/kubectl
+            curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+            chmod +x ./kind
+            mv ./kind /usr/local/bin/kind
 
 
       - name: Create KinD cluster
-        uses: helm/kind-action@v1
-        with:
-          cluster_name: ${{ env.KIND_CLUSTER_NAME }}
-
-          
-      - name: Debug KinD cluster
         run: |
+            kind create cluster --name ${{env.KIND_CLUSTER_NAME}}
+            printf "\n--- Clusters ---\n"
             kind get clusters
+            printf "\n--- Cluster-info ---\n"
+            kubectl cluster-info --context kind-${{env.KIND_CLUSTER_NAME}} || kubectl cluster-info
             
-
-      - name: Install Metrics Server
-        run: |
-            kubectl apply -f components.yaml
-            kubectl logs -n kube-system -l k8s-app=metrics-server || true
-            kubectl get apiservices || true
-            kubectl get deployment metrics-server -n kube-system || true
-            kubectl top nodes
-
-
-
-      - name: Configure kubectl
-        run: |
-            mkdir -p $(dirname "${KUBECONFIG}")
-            kind get kubeconfig --name ${KIND_CLUSTER_NAME} > "${KUBECONFIG}"
-            echo "KUBECONFIG=${KUBECONFIG}" >> $GITHUB_ENV
-            kubectl config use-context kind-${KIND_CLUSTER_NAME}
-            kubectl cluster-info
-            kubectl get nodes
-            kubectl config get-contexts
-
-
-      - name: Load Docker image into KinD
-        run: |
-            kind load docker-image $IMAGE_NAME:$IMAGE_TAG --name $KIND_CLUSTER_NAME
-            
-
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-
 
       # - name: Deploy to Cluster
       #   run: |
       #       kubectl apply -f k8s.yml
 
 
+      - name: Install Metrics Server
+        run: |
+          kubectl apply -f components.yaml  
+          sleep 60
+          printf "\n--- Deployments ---\n"
+          kubectl get deployment metrics-server -n kube-system
+          printf "\n--- Nodes ---\n"
+          kubectl top nodes        
+
+
+      - name: Configure kubectl
+        run: |
+            mkdir -p $(dirname "${{env.KUBECONFIG}}")
+            kind get kubeconfig --name ${{env.KIND_CLUSTER_NAME}} > "${{env.KUBECONFIG}}"
+            echo "KUBECONFIG=${{env.KUBECONFIG}}" >> ${GITHUB_ENV}
+            kubectl config use-context kind-${{env.KIND_CLUSTER_NAME}}
+            kubectl get nodes
+            kubectl config get-contexts
+
+
+      - name: Build Docker image
+        run: |
+            docker build -t ${{env.IMAGE_NAME}}:${{env.IMAGE_TAG}} ./flask-webapp
+            
+
+      - name: Load Docker image into KinD
+        run: |
+            kind load docker-image ${{env.IMAGE_NAME}}:${{env.IMAGE_TAG}} --name ${{env.KIND_CLUSTER_NAME}}
+            
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+
       - name: Deploy Helm chart
         run: |
-            helm upgrade --install web-app ./helm-chart -n demo --create-namespace 
-            sleep 15
-          
+            helm upgrade --install ${{env.RELEASE_NAME}} ./helm-chart -n ${{env.NAMESPACE}} --create-namespace 
+            sleep 60
+            printf "\n--- Resources ---\n"
+            kubectl get all -n ${{env.NAMESPACE}}
+            printf "\n--- Details ---\n"
+            kubectl describe deployment ${{env.RELEASE_NAME}} -n ${{env.NAMESPACE}}
 
-      # - name: Debug Helm failure
-      #   run: |
-      #     echo "--- Pods ---"
-      #     kubectl get pods -n demo -o wide
-      #     echo "--- Describe ---"
-      #     kubectl describe pods -n demo
-      #     echo "--- Logs ---"
-      #     for p in $(kubectl get pods -n demo -o name); do
-      #       kubectl logs -n demo $p || true
-      #     done
-      #     kubectl get all -n demo -o wide
-
-
-      - name: Wait for deployment
-        run: |
-            kubectl get pods -n kube-system | grep metrics-server
-            kubectl logs -n kube-system deployment/metrics-server --tail=200
-
-            # xem nếu metrics API sẵn sàng
-            kubectl get apiservice v1beta1.metrics.k8s.io -o yaml
-
-            # thử xem kubectl top
-            kubectl top nodes
-            kubectl top pods -n demo
-            helm list -A
-            helm -n demo status flask-webapp || true
-            helm -n demo get manifest flask-webapp | head -n 50
-            kubectl -n demo get all -o wide
-
-            kubectl rollout status deployment/web-app -n demo --timeout=20s
+        
+      - name: Run tests
+        run: pytest ./test
 
 
       - name: Smoke test the service
         run: |
-            kubectl port-forward -n demo svc/web-app 5000:5000 &
-            PF_PID=$!
-            sleep 5
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5000 || echo "000")
-            echo "HTTP_CODE=$HTTP_CODE"
-            if [ "$HTTP_CODE" -lt 200 || "$HTTP_CODE" -ge 300 ]; then
-              echo "Service is not healthy"
-              kill $PF_PID || true
-              exit 1
-            fi
-            echo "Service is healthy"
-            kill $PF_PID || true
+            SVC=${{env.RELEASE_NAME}}-helm-chart
+            PORT=$(kubectl -n ${{env.NAMESPACE}} get svc ${SVC} -o jsonpath='{.spec.ports[0].port}' 2>/dev/null) || { echo "svc not found"; exit 1; }
+            kubectl -n ${{env.NAMESPACE}} port-forward svc/${SVC} 5000:${PORT} >/dev/null 2>&1 & PF=$!; sleep 2
+            HTTP_CODE=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:5000 || echo 000)
+            kill $PF 2>/dev/null || true
+            if [ "${HTTP_CODE}" -ge 200 ] && [ "${HTTP_CODE}" -lt 300 ]; then echo "Service is healthy"; else echo "Service failed: ${HTTP_CODE}"; exit 1; fi
 
 
       - name: Dump pod logs for debugging
         run: |
-            for p in $(kubectl -n demo get pods -o name); do
+            for p in $(kubectl -n ${{env.NAMESPACE}} get pods -o name); do
               echo "Logs for Pod: $p"
-              kubectl -n demo logs $p --all-containers || true
+              kubectl -n ${{env.NAMESPACE}} logs $p --all-containers || true
             done
 
       
-      - name: Cleanup (always)
+      - name: Cleanup
         if: always()
         run: |
-          kubectl delete pod -l run=loadgen -n demo --grace-period=0 --force
-          kubectl delete pods -n demo --all
+          for c in $(kind get clusters); do kind delete cluster --name $c; done || true
+         
 

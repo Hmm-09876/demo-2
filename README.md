@@ -36,55 +36,20 @@ https://steep-fog-d998.demo2-test.workers.dev/
 pip install docker flask pytest app
 ```
 
-## Cài Minikube
-```
-curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 \
-  && chmod +x minikube
-sudo install minikube /usr/local/bin/
-```
+## Cài kubectl
+https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
 
-## Thêm user vào nhóm Docker
-```
-sudo usermod -aG docker $USER
-newgrp docker
-```
+## Cài kind:
+https://kind.sigs.k8s.io/docs/user/quick-start/
+	
+## Cài helm
+https://helm.sh/docs/intro/install/
 
-## Khởi động Minikube
-```
-minikube start --driver=docker
-```
+## Cài docker
+https://docs.docker.com/engine/install/ubuntu/
 
-## Cài và setup Kind
-```
-[ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
-chmod +x kind
-mv ./kind /usr/local/bin/
-kind create cluster --name kind
-kind load docker-image my-backend:latest
-```
-
-## Cài và setup Helm
-```
-snap install helm --clasic
-helm create helm-chart
-helm upgrade --install demo ./helm-chart -f helm-chart/values.yaml
-```
-
-## Cài kubectl và kiểm tra node
-```
-sudo snap install kubectl --classic
-kubectl get nodes
-```
-
-## Chuyển Docker client sang Minikube
-```
-eval $(minikube docker-env)
-```
-
-## Build Docker image cho Flask
-```
-docker build -t flask-app:latest .
-```
+## Tải Metrics Server manifest:
+wget https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
 ## Tải và cài act
 ```
@@ -101,33 +66,37 @@ git clone https://github.com/Hmm-09876/demo-2.git
 cd demo-2/
 ```
 
-## Xây dựng Docker image cho backend
+## Create kind cluster
 ```
-sudo usermod -aG docker $USER
-newgrp docker
-docker build -t my-backend:latest . 
+kind create cluster --name demo-cluster
 ```
 
-## Tải và nạp image vào Kind
+## Build & load image
 ```
-[ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
-chmod +x kind
-mv ./kind /usr/local/bin/
-kind create cluster --name kind
-kind load docker-image my-backend:latest
+docker build -t my-backend:latest ./flask-webapp
+kind load docker-image my-backend:latest --name demo-cluster
 ```
 
-## Triển khai ứng dụng qua Helm
+## cài metrics-server
 ```
-snap install helm --clasic
-helm create helm-chart
-helm upgrade --install demo ./helm-chart -f helm-chart/values.yaml
+kubectl apply -f components.yaml
 ```
 
-## Kiểm tra trạng thái của Pod
+## Deploy Helm chart
 ```
-kubectl get pods
+helm upgrade --install demo-backend ./helm-chart -n demo --create-namespace
 ```
+
+## Check pods & HPA
+```
+kubectl get pods -n demo
+kubectl get hpa -n demo
+kubectl top pods -n demo
+```
+
+## Cleanup
+kubectl delete ns demo
+kind delete cluster --name demo-cluster
 
 
 
