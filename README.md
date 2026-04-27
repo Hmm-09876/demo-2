@@ -1,5 +1,5 @@
 [![CI/CD](https://github.com/Hmm-09876/demo-2/actions/workflows/k8s-ci-cd.yml/badge.svg)](https://github.com/Hmm-09876/demo-2/actions)
-## Một project nhỏ để luyện tập cách build, test và deploy một ứng dụng đơn giản. Không phải project kiểu production, mà là nơi mình thử nghiệm workflow thực tế, từ code, test cho tới deploy.
+## Một project nhỏ để luyện tập cách build, test và deploy một ứng dụng đơn giản. Không phải project kiểu production, mà là nơi thử nghiệm workflow thực tế, từ code, test cho tới deploy.
 
 # Mục tiêu demo-2
 - Chạy app local từ đầu đến cuối
@@ -9,7 +9,7 @@
 - Deploy app lên Kubernetes local
 - Làm quen với GitHub Actions, hiểu flow CI/CD cơ bản
 
-## Mình dùng gì cho project
+## Những gì được dùng trong project
 - Python / Flask cho phần app chính
 - pytest để viết và chạy test
 - Docker để build và chạy container
